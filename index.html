@@ -54,7 +54,7 @@
                 connection.addIceCandidate(JSON.parse(iceCandidate));
             });
 
-            function copyConnection(event) {
+            window.copyConnection = (event) => {
                 var info = connection.info;
                 var infoJson = JSON.stringify(info);
                 var encodedInfo = btoa(infoJson);
