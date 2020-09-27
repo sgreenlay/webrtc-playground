@@ -211,7 +211,7 @@
             document.getElementById("app").classList.remove('hidden');
 
             window.addEventListener('connectiondatareceived', (event) => {
-                document.getElementById("chat").innerText += event.detail.text + '\n';
+                document.getElementById("chat").innerText += 'Them: ' +event.detail.text + '\n';
             });
 
             document.getElementById("chatForm").addEventListener('submit', event => {
@@ -220,7 +220,7 @@
                 const chatToSend = document.getElementById("chatToSend");
                 const text = chatToSend.value;
 
-                document.getElementById("chat").innerText += text + '\n';
+                document.getElementById("chat").innerText += 'You: ' + text + '\n';
                 connection.sendData(text);
 
                 chatToSend.value = '';
