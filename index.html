@@ -42,6 +42,8 @@
         var connection;
         if (urlParams.has('connect'))
         {
+            history.pushState("", document.title, window.location.pathname);
+
             document.getElementById("guest").classList.remove('hidden');
 
             connection = new WebRTCConnection('guest');
