@@ -1,19 +1,57 @@
 <!DOCTYPE html>
 <html>
 
-<head></head>
+<head>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+        }
+        .hidden {
+            visibility: hidden;
+            display: none;
+        }
+    </style>
+</head>
 
 <body>
-    <pre id="output"></pre>
+    <div id="host" class="hidden setup">
+        <div>
+            <a href="#" id="connectionURL">Connection URL</a>
+        </div>
+        <form id="connectForm">
+            <input type="text" id="connect"><br>
+            <input type="submit">
+        </form>
+    </div>
+    <div id="guest" class="hidden setup">
+        <button onclick="javascript:copyConnection()">Copy Connection String</button>
+    </div>
+    <div id="app" class="hidden">
+        <pre id="chat"></pre>
+        <form id="chatForm">
+            <input type="text" id="chatToSend"><br>
+            <input type="submit">
+        </form>
+    </div>
     <script>
         function WebRTCConnection(role) {
             const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
             this.connection = new RTCPeerConnection(configuration);
+
+            this.info = {
+                o : '',
+                a : '',
+                i : []
+            };
             
             this.onAddIceCandidate = async (event) => {
                 if (event.candidate != null)
                 {
-                    console.log(`icecandidate: ${JSON.stringify(event.candidate.toJSON())}`);
+                    const candidateJson = JSON.stringify(event.candidate.toJSON());
+                    console.log(`icecandidate: ${candidateJson}`);
+
+                    this.info.i.push(candidateJson);
                 }
             };
             this.connection.onicecandidate = this.onAddIceCandidate;
@@ -21,9 +59,20 @@
             this.onChannelStateChange = () => {
                 const readyState = this.channel.readyState;
                 console.log('Channel state is: ' + readyState);
+
+                if (readyState == 'open')
+                {
+                    window.dispatchEvent(new Event('connectionready'));
+                }
             }
             this.onChannelMessageCallback = (event) => {
                 console.log('Received Message: ' + event.data);
+
+                window.dispatchEvent(new CustomEvent('connectiondatareceived', {
+                    detail : {
+                        text: event.data
+                    }
+                }));
             }
 
             this.addIceCandidate = async (candidate) => {
@@ -52,7 +101,11 @@
                 const createOffer = async () => {
                     const offer = await this.connection.createOffer();
                     this.connection.setLocalDescription(offer);
-                    console.log(`offer: ${JSON.stringify(offer)}`);
+
+                    const offerJson = JSON.stringify(offer);
+                    console.log(`offer: ${offerJson}`);
+
+                    this.info.o = offerJson;
                 }
                 createOffer();
             }
@@ -71,10 +124,108 @@
                     this.connection.setRemoteDescription(offer);
                     const answer = await this.connection.createAnswer();
                     this.connection.setLocalDescription(answer);
-                    console.log(`answer: ${JSON.stringify(answer)}`);
+
+                    const answerJson = JSON.stringify(answer);
+                    console.log(`answer: ${answerJson}`);
+
+                    this.info.a = answerJson;
                 };
             }
         }
+
+        var urlParams = new URLSearchParams(window.location.search);
+
+        var connection;
+        if (urlParams.has('connect'))
+        {
+            document.getElementById("guest").classList.remove('hidden');
+
+            connection = new WebRTCConnection('guest');
+
+            var encodedInfo = urlParams.get('connect');
+            var info = JSON.parse(atob(encodedInfo));
+
+            connection.connectToHost(JSON.parse(info.o));
+            info.i.forEach(iceCandidate => {
+                connection.addIceCandidate(JSON.parse(iceCandidate));
+            });
+
+            function copyConnection(event) {
+                var info = connection.info;
+                var infoJson = JSON.stringify(info);
+                var encodedInfo = btoa(infoJson);
+
+                // https://hackernoon.com/copying-text-to-clipboard-with-javascript-df4d4988697f
+                const el = document.createElement('textarea');
+                el.value = encodedInfo;
+                el.setAttribute('readonly', '');
+                el.style.position = 'absolute';
+                el.style.left = '-9999px';
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+            }
+        }
+        else
+        {
+            document.getElementById("host").classList.remove('hidden');
+            document.getElementById("connectForm").addEventListener('submit', event => {
+                event.preventDefault();
+
+                const encodedInfo = document.getElementById("connect").value;
+
+                var info = JSON.parse(atob(encodedInfo));
+                connection.connectToGuest(JSON.parse(info.a));
+                info.i.forEach(iceCandidate => {
+                    connection.addIceCandidate(JSON.parse(iceCandidate));
+                });
+            });
+
+            connection = new WebRTCConnection('host');
+
+            setTimeout(() => {
+                var info = connection.info;
+                var infoJson = JSON.stringify(info);
+                var encodedInfo = btoa(infoJson);
+                
+                const url = window.location.href + `?connect=${encodedInfo}`;
+                const connectionURL = document.getElementById("connectionURL");
+                connectionURL.href = url;
+            }, 200);
+
+            const connect = (encodedInfo) => {
+                var info = JSON.parse(atob(encodedInfo));
+
+                connection.connectToGuest(JSON.parse(info.a));
+                info.i.forEach(iceCandidate => {
+                    connection.addIceCandidate(JSON.parse(iceCandidate));
+                });
+            };
+        }
+
+        window.addEventListener('connectionready', () => {
+            Array.from(document.getElementsByClassName('setup')).forEach(element => {
+                element.classList.add('hidden');
+            });
+            document.getElementById("app").classList.remove('hidden');
+
+            window.addEventListener('connectiondatareceived', (event) => {
+                document.getElementById("chat").innerText += event.detail.text + '\n';
+            });
+
+            document.getElementById("chatForm").addEventListener('submit', event => {
+                event.preventDefault();
+
+                const chatToSend = document.getElementById("chatToSend");
+                const text = chatToSend.value;
+
+                document.getElementById("chat").innerText += text + '\n';
+                connection.sendData(text);
+
+                chatToSend.value = '';
+            })
+        });
     </script>
 </body>
 
