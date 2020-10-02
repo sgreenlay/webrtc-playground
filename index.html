@@ -46,7 +46,7 @@
 
             document.getElementById("guest").classList.remove('hidden');
 
-            connection = new WebRTCConnection('guest');
+            connection = new WebRTCConnection('guest', urlParams.has('debug'));
 
             var encodedInfo = urlParams.get('connect');
             var info = JSON.parse(atob(encodedInfo));
@@ -88,7 +88,7 @@
                 });
             });
 
-            connection = new WebRTCConnection('host');
+            connection = new WebRTCConnection('host', urlParams.has('debug'));
 
             setTimeout(() => {
                 var info = connection.info;
